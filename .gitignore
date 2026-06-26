@@ -1,0 +1,25 @@
+# === Python ===
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# === API Key (CRITICAL: Do NOT upload personal keys!) ===
+API Key/
+API_KEY.txt
+*.key
+
+# === Streamlit ===
+.streamlit/
+
+# === OS files ===
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# === IDE ===
+.vscode/
+.idea/
