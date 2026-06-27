@@ -2,51 +2,263 @@ import streamlit as st
 import google.generativeai as genai
 import requests
 import os
+import urllib.parse
+import time
 
+# 1. CIVITAI-STYLE HIGH-TECH DARK THEME (Custom CSS Overrides)
 st.set_page_config(page_title="AI Etsy Asset Generator V.0 (demo)", page_icon="🎨", layout="wide")
 
-st.title("🎨 AI Etsy Asset Generator V.0 (demo)")
-st.markdown("ระบบผู้ช่วยสร้างรูปภาพและเนื้อหาสำหรับลงขายบน Etsy โดยใช้ **Gemini AI**")
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Kanit:wght@300;400;600&display=swap');
 
-# ระบบอ่าน API Key จากไฟล์ (ใช้ path แบบ relative เพื่อให้ทำงานได้ในเครื่องของทุกคน)
-api_key = ""
-script_dir = os.path.dirname(os.path.abspath(__file__))
-api_key_file = os.path.join(script_dir, "API Key", "API_KEY.txt")
+/* พื้นหลังหลักและฟอนต์สไตล์ Civitai */
+.stApp {
+    background-color: #0b0c10;
+    color: #e4e6eb;
+    font-family: 'Inter', 'Kanit', sans-serif;
+}
 
-# เช็คว่ามีไฟล์อยู่และอ่านค่ามา
-if os.path.exists(api_key_file):
-    with open(api_key_file, "r", encoding="utf-8") as f:
-        api_key = f.read().strip()
+/* หัวข้อหลักแบบมินิมอลแต่ทรงพลัง */
+h1 {
+    color: #ffffff !important;
+    font-size: 2.5rem !important;
+    font-weight: 700 !important;
+    text-shadow: 0 0 15px rgba(124, 58, 237, 0.4) !important;
+    text-align: center;
+    margin-bottom: 0.5rem !important;
+}
 
-# Sidebar
+h2, h3 {
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    border-bottom: 2px solid #2e303e;
+    padding-bottom: 8px;
+    margin-top: 1.5rem !important;
+}
+
+/* ฟอร์มและกล่องคอนเทนเนอร์สไตล์ Civitai Card */
+[data-testid="stForm"] {
+    border: 1px solid #2e303e !important;
+    background-color: #161822 !important;
+    border-radius: 16px !important;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5) !important;
+    padding: 2rem !important;
+}
+
+/* ปรับแต่งปุ่มกดหลัก (Civitai Accent Button) */
+button[kind="primaryFormSubmit"], .stButton > button {
+    background-color: #7c3aed !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+    font-family: 'Inter', 'Kanit', sans-serif;
+    padding: 0.6rem 2rem !important;
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3) !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    width: 100%;
+}
+
+button[kind="primaryFormSubmit"]:hover, .stButton > button:hover {
+    background-color: #9061f9 !important;
+    box-shadow: 0 4px 20px rgba(124, 58, 237, 0.6) !important;
+    transform: translateY(-2px);
+}
+
+/* แผงควบคุมด้านข้าง (Sidebar) */
+section[data-testid="stSidebar"] {
+    background-color: #11121a !important;
+    border-right: 1px solid #2e303e !important;
+}
+
+/* กล่องแสดงผลรูปภาพสไตล์การ์ดแสดงผลงาน Civitai */
+[data-testid="stImage"] {
+    border-radius: 12px !important;
+    border: 1px solid #2e303e !important;
+    background-color: #1a1b23 !important;
+    padding: 8px !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+[data-testid="stImage"]:hover {
+    transform: translateY(-5px) !important;
+    border-color: #7c3aed !important;
+    box-shadow: 0 12px 25px rgba(124, 58, 237, 0.4) !important;
+}
+
+/* ช่องกรอกข้อความและ Selectbox */
+div[data-baseweb="input"], div[data-baseweb="select"] {
+    background-color: #1f202e !important;
+    border: 1px solid #3a3f58 !important;
+    border-radius: 8px !important;
+    transition: border-color 0.2s ease;
+}
+
+div[data-baseweb="input"]:focus-within, div[data-baseweb="select"]:focus-within {
+    border-color: #7c3aed !important;
+}
+
+input, select, textarea {
+    color: #ffffff !important;
+}
+
+/* กล่องแสดงโค้ดคำอธิบายแบบเรียบหรู */
+code {
+    background-color: #0f1015 !important;
+    color: #10b981 !important; /* สีเขียวมิ้นต์แบบโมเดิร์น */
+    border-left: 4px solid #7c3aed !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    border-radius: 4px;
+}
+
+/* การตกแต่งสัญลักษณ์พิเศษ */
+.badge {
+    background-color: #2e303e;
+    color: #a0aec0;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# 2. พจนานุกรมแปลภาษา (TH / EN)
+translations = {
+    "TH": {
+        "title": "🎨 AI Etsy Asset Generator V.0 (demo)",
+        "subtitle": "สร้างเนื้อหาและภาพประกอบสำหรับลงขายบน Etsy โดยอัตโนมัติด้วยพลังของ **Gemini 2.5**",
+        "settings": "⚙️ ตั้งค่าระบบ (Settings)",
+        "api_key_found": "✅ ตรวจพบ API Key ในระบบแล้ว พร้อมใช้งาน!",
+        "api_key_input": "กรอก Google Gemini API Key:",
+        "api_key_help": "💡 หรือบันทึกไว้ในไฟล์ `API Key/API_KEY.txt` เพื่อล็อกอินอัตโนมัติ",
+        "instructions_header": "💡 ขั้นตอนการใช้งาน:",
+        "instructions": "1. ป้อนไอเดียสินค้าในช่องขวา\n2. เลือกขนาด (Aspect Ratio) และจำนวนภาพ\n3. กดปุ่ม '🚀 สร้างสินค้า' หรือกดปุ่ม Enter บนแป้นพิมพ์",
+        "idea_label": "💡 ไอเดียสินค้าของคุณ (เช่น สติกเกอร์น้องแมวอวกาศ, ลายดอกไม้สีน้ำวินเทจ):",
+        "idea_placeholder": "พิมพ์ไอเดียของคุณที่นี่...",
+        "ratio_label": "📐 เลือกขนาดอัตราส่วนภาพ (Aspect Ratio):",
+        "count_label": "🖼️ จำนวนรูปภาพที่ต้องการเจน (1-8 รูป):",
+        "btn_generate": "🚀 สร้างสรรค์สินค้า",
+        "err_no_key": "⚠️ ไม่พบ API Key กรุณากรอกที่แถบด้านซ้าย หรือจัดเก็บในไฟล์ระบบครับ",
+        "err_no_idea": "⚠️ กรุณากรอกไอเดียสินค้าของคุณก่อนครับ",
+        "spinner_text": "⏳ กำลังให้ Gemini วิเคราะห์และเขียนรายละเอียดสินค้า (Title, Description, Tags)...",
+        "spinner_img": "⏳ กำลังดาวน์โหลดและประมวลผลรูปภาพที่ {idx} จาก {total}...",
+        "success_text": "✨ ข้อมูลสินค้าเขียนเสร็จแล้ว! กำลังโหลดรูปภาพทั้งหมด...",
+        "img_header": "🖼️ แกลเลอรี่ภาพผลงาน ({count} รูป)",
+        "listing_header": "📝 ข้อมูลสำหรับนำไปคัดลอกลงร้านค้า Etsy",
+        "title_label": "📋 ชื่อสินค้าแนะนำสำหรับ SEO (Title)",
+        "desc_label": "📋 คำอธิบายสินค้า (Description)",
+        "tags_label": "🏷️ คีย์เวิร์ดสำหรับแท็กค้นหา (Tags 13 คำ)",
+        "prompt_used": "💡 Prompt วาดภาพที่ Gemini ออกแบบให้สำหรับใช้วาดรูปนี้:",
+    },
+    "EN": {
+        "title": "🎨 AI Etsy Asset Generator V.0 (demo)",
+        "subtitle": "Generate complete Etsy listings and illustrations automatically with **Gemini 2.5**",
+        "settings": "⚙️ Settings",
+        "api_key_found": "✅ API Key loaded from system. Ready!",
+        "api_key_input": "Enter Google Gemini API Key:",
+        "api_key_help": "💡 Or save it in `API Key/API_KEY.txt` to auto-login next time.",
+        "instructions_header": "💡 Simple Steps:",
+        "instructions": "1. Type your product idea on the right.\n2. Choose aspect ratio and image count.\n3. Click '🚀 Generate' or press Enter!",
+        "idea_label": "💡 Your Product Idea (e.g., cute space cat stickers, watercolor floral pattern):",
+        "idea_placeholder": "Type your product idea here...",
+        "ratio_label": "📐 Aspect Ratio:",
+        "count_label": "🖼️ Number of Images to Generate (1-8):",
+        "btn_generate": "🚀 Generate Etsy Assets",
+        "err_no_key": "⚠️ API Key not found. Please enter it in the sidebar or save to `API Key/API_KEY.txt`.",
+        "err_no_idea": "⚠️ Please enter a product idea first.",
+        "spinner_text": "⏳ Gemini is writing SEO Title, Description, and Image Prompts...",
+        "spinner_img": "⏳ Downloading and rendering image #{idx} of {total}...",
+        "success_text": "✨ Listing text generated! Rendering all images now...",
+        "img_header": "🖼️ Product Gallery ({count} images)",
+        "listing_header": "📝 Etsy Listing Details",
+        "title_label": "📋 SEO Optimized Product Title",
+        "desc_label": "📋 Product Description",
+        "tags_label": "🏷️ Search Tags (13 Keywords)",
+        "prompt_used": "💡 Image Prompt written by Gemini:",
+    }
+}
+
+# 3. ขนาดพิกเซลตามอัตราส่วนภาพ
+aspect_ratios = {
+    "1:1 (Square)": (1024, 1024),
+    "3:4 (Portrait)": (768, 1024),
+    "4:3 (Landscape)": (1024, 768),
+    "16:9 (Widescreen)": (1024, 576),
+    "9:16 (Story)": (576, 1024),
+    "4:6 (Etsy Print)": (680, 1020),
+    "3:5 (Tall Poster)": (600, 1000)
+}
+
+# ฟังก์ชันดาวน์โหลดรูปภาพแบบมี Retry ป้องกันภาพมาไม่ครบ
+def fetch_image_bytes(url):
+    for attempt in range(3):
+        try:
+            r = requests.get(url, timeout=20)
+            if r.status_code == 200 and len(r.content) > 5000:
+                return r.content
+        except Exception:
+            pass
+        time.sleep(1)
+    return None
+
+# 4. ตั้งค่า Sidebar
 with st.sidebar:
-    st.header("⚙️ ตั้งค่า (Settings)")
-    if api_key:
-        st.success("✅ ระบบพบ API Key ของคุณฝังอยู่ในไฟล์เรียบร้อยแล้ว พร้อมใช้งาน!")
-    else:
-        api_key = st.text_input("ใส่ Google Gemini API Key:", type="password")
-        st.markdown("[👉 คลิกที่นี่เพื่อขอ API Key ฟรี](https://aistudio.google.com/app/apikey)")
-        st.warning("💡 หรือสร้างโฟลเดอร์ `API Key` แล้วสร้างไฟล์ `API_KEY.txt` วาง Key ไว้ข้างใน ระบบจะอ่านให้อัตโนมัติ")
+    lang_choice = st.radio("🌐 Language / ภาษา", ["🇺🇸 English", "🇹🇭 ไทย"], horizontal=True)
+    lang_code = "TH" if lang_choice == "🇹🇭 ไทย" else "EN"
+    t = translations[lang_code]
     
     st.divider()
-    st.markdown("💡 **วิธีใช้งาน:**")
-    st.markdown("1. พิมพ์ไอเดียสินค้าในช่องด้านขวา\n2. กดปุ่ม '🚀 สร้างสินค้า'\n3. รอระบบประมวลผล (10-20 วินาที)")
+    st.header(t["settings"])
+    
+    api_key = ""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    api_key_file = os.path.join(script_dir, "API Key", "API_KEY.txt")
 
-# Main Content
-idea = st.text_input("💡 ไอเดียสินค้าของคุณ (เช่น สติกเกอร์น้องแมวอวกาศ, ลายแพทเทิร์นดอกไม้สีน้ำวินเทจ):", placeholder="พิมพ์ไอเดียของคุณที่นี่...")
+    if os.path.exists(api_key_file):
+        with open(api_key_file, "r", encoding="utf-8") as f:
+            api_key = f.read().strip()
 
-if st.button("🚀 สร้างสินค้า (Generate)", use_container_width=True):
+    if api_key:
+        st.success(t["api_key_found"])
+    else:
+        api_key = st.text_input(t["api_key_input"], type="password")
+        st.markdown(t["api_key_help"])
+    
+    st.divider()
+    st.markdown(f"### {t['instructions_header']}")
+    st.markdown(t["instructions"])
+
+# 5. ส่วนควบคุมหน้าจอหลัก
+st.title(t["title"])
+st.markdown(f"<p style='text-align: center; color: #a0aec0; margin-bottom: 2rem;'>{t['subtitle']}</p>", unsafe_allow_html=True)
+
+# ระบบฟอร์มรับข้อมูล (พิมพ์เสร็จแล้วเคาะ Enter ได้เลย)
+with st.form(key="generator_form"):
+    idea = st.text_input(t["idea_label"], placeholder=t["idea_placeholder"])
+    
+    col_opt1, col_opt2 = st.columns([1, 1])
+    with col_opt1:
+        ratio_name = st.selectbox(t["ratio_label"], list(aspect_ratios.keys()))
+    with col_opt2:
+        image_count = st.slider(t["count_label"], 1, 8, 4)
+        
+    submit_button = st.form_submit_button(label=t["btn_generate"])
+
+# 6. ประมวลผลและแสดงผลลัพธ์
+if submit_button:
     if not api_key:
-        st.error("⚠️ ไม่พบ API Key ครับ กรุณาใส่ในช่องด้านซ้าย หรือสร้างไฟล์ `API Key/API_KEY.txt` ครับ")
+        st.error(t["err_no_key"])
     elif not idea:
-        st.error("⚠️ กรุณาพิมพ์ไอเดียสินค้าก่อนครับ")
+        st.error(t["err_no_idea"])
     else:
         try:
-            # 1. ตั้งค่า API Key (ตัดช่องว่างอัตโนมัติเพื่อป้องกัน Error)
             genai.configure(api_key=api_key.strip())
             
-            with st.spinner("⏳ กำลังให้ Gemini คิด Title, Description และ Tags สำหรับขายบน Etsy..."):
-                # 2. เรียกใช้ Gemini AI รุ่น 2.5-flash (รองรับทุก API Key)
+            # เรียกใช้งาน Gemini 2.5-flash
+            with st.spinner(t["spinner_text"]):
                 model = genai.GenerativeModel('gemini-2.5-flash') 
                 prompt = f"""
                 You are an expert Etsy seller and AI Prompt Engineer. I want to sell a digital product based on this idea: "{idea}".
@@ -69,44 +281,73 @@ if st.button("🚀 สร้างสินค้า (Generate)", use_container_
                 response = model.generate_content(prompt)
                 text_result = response.text
                 
-                # แยกส่วนข้อมูลที่ได้
                 try:
                     title_part = text_result.split("**TITLE**")[1].split("**DESCRIPTION**")[0].strip()
                     desc_part = text_result.split("**DESCRIPTION**")[1].split("**TAGS**")[0].strip()
                     tags_part = text_result.split("**TAGS**")[1].split("**IMAGE PROMPT**")[0].strip()
                     image_prompt = text_result.split("**IMAGE PROMPT**")[1].strip()
                 except Exception as e:
-                    st.error("❌ เกิดข้อผิดพลาดในการจัดรูปแบบคำตอบจาก AI ลองกดสร้างใหม่อีกครั้ง")
+                    st.error("❌ Model response formatting error. Please retry.")
                     st.stop()
 
-            st.success("✨ ข้อมูล Etsy สำเร็จแล้ว! กำลังวาดรูปภาพ...")
+            st.success(t["success_text"])
             
-            # 3. แสดงผลหน้าจอ
-            col1, col2 = st.columns([1, 1])
+            # สร้างคอลัมน์ซ้าย-ขวา
+            col_left, col_right = st.columns([6, 5])
             
-            with col1:
-                st.subheader("🖼️ รูปภาพสินค้า (Image)")
-                with st.spinner("⏳ กำลังวาดรูปภาพจาก Prompt ของ Gemini..."):
-                    import urllib.parse
-                    safe_prompt = urllib.parse.quote(image_prompt)
-                    image_url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width=1024&height=1024&nologo=true"
-                    
-                    st.image(image_url, caption="คลิกขวาที่รูป > 'Save image as' เพื่อนำไปใช้", use_column_width=True)
-                    st.info(f"**💡 Prompt ที่ Gemini คิดให้เพื่อใช้วาดรูปนี้:**\n\n{image_prompt}")
-
-            with col2:
-                st.subheader("📝 ข้อมูลสำหรับลงขาย Etsy")
+            with col_left:
+                st.subheader(t["img_header"].format(count=image_count))
                 
-                st.markdown("📋 **ชื่อสินค้า (Title) - ก๊อปปี้ไปวางได้เลย**")
+                width, height = aspect_ratios[ratio_name]
+                cols_per_row = 3 if image_count > 4 else 2
+                rows_count = (image_count + cols_per_row - 1) // cols_per_row
+                
+                # ลูปดาวน์โหลดรูปภาพเก็บใส่หน่วยความจำก่อน เพื่อรับประกันว่ารูปแสดงผลครบ 100%
+                image_bytes_list = []
+                progress_bar = st.progress(0)
+                
+                for idx in range(image_count):
+                    # แสดงสถานะความคืบหน้าการโหลดแต่ละรูป
+                    with st.spinner(t["spinner_img"].format(idx=idx+1, total=image_count)):
+                        seed = 42 + (idx * 150)
+                        safe_prompt = urllib.parse.quote(image_prompt)
+                        image_url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width={width}&height={height}&nologo=true&seed={seed}"
+                        
+                        img_bytes = fetch_image_bytes(image_url)
+                        if img_bytes:
+                            image_bytes_list.append(img_bytes)
+                        progress_bar.progress((idx + 1) / image_count)
+                
+                # ลบแถบความคืบหน้าออกหลังโหลดเสร็จ
+                progress_bar.empty()
+                
+                # แสดงรูปในตารางสไตล์การ์ด Civitai
+                for r in range(rows_count):
+                    grid_cols = st.columns(cols_per_row)
+                    for c in range(cols_per_row):
+                        img_idx = r * cols_per_row + c
+                        if img_idx < len(image_bytes_list):
+                            with grid_cols[c]:
+                                st.image(
+                                    image_bytes_list[img_idx], 
+                                    caption=f"Image #{img_idx + 1}", 
+                                    use_container_width=True
+                                )
+                
+                st.info(f"{t['prompt_used']}\n\n`{image_prompt}`")
+
+            with col_right:
+                st.subheader(t["listing_header"])
+                
+                st.markdown(t["title_label"])
                 st.code(title_part, language="text")
                 
-                st.markdown("📋 **รายละเอียด (Description)**")
+                st.markdown(t["desc_label"])
                 st.code(desc_part, language="text")
                 
-                st.markdown("🏷️ **คีย์เวิร์ด (Tags 13 คำ)**")
+                st.markdown(t["tags_label"])
                 st.code(tags_part, language="text")
 
         except Exception as e:
-            st.error("❌ เกิดข้อผิดพลาดจากฝั่ง Google API (API Key หรือระบบเครือข่าย)")
-            st.error(f"รายละเอียด: {str(e)}")
-            st.info("💡 คำแนะนำ: ลองเช็คให้แน่ใจว่า API Key ถูกต้อง หรือลองขอ API Key ใหม่จาก https://aistudio.google.com/app/apikey")
+            st.error("❌ SYSTEM ERROR")
+            st.error(str(e))
